@@ -339,7 +339,7 @@ ENDCLASS.
 
 
 
-CLASS zdmo_cl_rap_generator IMPLEMENTATION.
+CLASS ZDMO_CL_RAP_GENERATOR IMPLEMENTATION.
 
 
   METHOD add_annotation_ui_facets.

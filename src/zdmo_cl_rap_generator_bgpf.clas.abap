@@ -26,20 +26,25 @@ ENDCLASS.
 
 
 
-CLASS zdmo_cl_rap_generator_bgpf IMPLEMENTATION.
+CLASS ZDMO_CL_RAP_GENERATOR_BGPF IMPLEMENTATION.
+
+
   METHOD if_bgmc_op_single_tx_uncontr~execute.
     start_generator(  ).
   ENDMETHOD.
 
+
   METHOD if_abap_parallel~do.
     start_generator(  ).
   ENDMETHOD.
+
 
   METHOD constructor.
     json_string = i_json_string.
     package_language_version = i_package_language_version.
     rap_bo_uuid              = i_rap_bo_uuid.
   ENDMETHOD.
+
 
   METHOD start_generator.
     DATA(xco_on_prem_library) = NEW zdmo_cl_rap_xco_on_prem_lib(  ).
@@ -130,7 +135,4 @@ CLASS zdmo_cl_rap_generator_bgpf IMPLEMENTATION.
 
     ENDIF.
   ENDMETHOD.
-
-
-
 ENDCLASS.

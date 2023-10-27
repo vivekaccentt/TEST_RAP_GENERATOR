@@ -155,7 +155,8 @@ ENDCLASS.
 
 
 
-CLASS zdmo_cl_rap_generator_del IMPLEMENTATION.
+CLASS ZDMO_CL_RAP_GENERATOR_DEL IMPLEMENTATION.
+
 
   METHOD constructor.
     super->constructor( ).
@@ -169,129 +170,102 @@ CLASS zdmo_cl_rap_generator_del IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD start_deletion.
 
-  METHOD rap_gen_project_objects_exist.
+    TRY.
+*        IF application_log IS INITIAL.
+*          create_application_log(  ).
+*        ENDIF.
 
-    DATA generated_repository_objects TYPE zdmo_cl_rap_generator=>t_generated_repository_objects.
-    DATA generated_repository_object TYPE zdmo_cl_rap_generator=>t_generated_repository_object.
+        add_text_to_app_log_or_console( 'start method start_deletion( )' ).
 
-*    DATA on_prem_xco_lib  TYPE REF TO zdmo_cl_rap_xco_lib.
-*    DATA xco_lib  TYPE REF TO zdmo_cl_rap_xco_lib.
-*
-*    on_prem_xco_lib = NEW zdmo_cl_rap_xco_on_prem_lib(  ).
-*
-*    IF on_prem_xco_lib->on_premise_branch_is_used( ) = abap_true.
-*      xco_lib = NEW zdmo_cl_rap_xco_on_prem_lib(  ).
-*    ELSE.
-*      xco_lib = NEW zdmo_cl_rap_xco_cloud_lib(  ).
-*    ENDIF.
 
-    SELECT * FROM ZDMO_R_RAPG_NodeTP WHERE rapboUUID = @i_rap_generator_project-RapboUUID
-                                                  INTO TABLE @DATA(rapbo_nodes).
+        add_text_to_app_log_or_console( |checking rap bo { BoName }| ).
 
-    LOOP AT rapbo_nodes INTO DATA(rapbo_node).
-      "get repository object names and types
+        DATA(objects_to_be_deleted_1) = get_objects_from_rap_generator( BoName ).
 
-      CLEAR generated_repository_objects.
 
-      IF rapbo_node-ServiceBinding IS NOT INITIAL.
-        generated_repository_object-object_name = rapbo_node-ServiceBinding.
-        generated_repository_object-object_type = zdmo_cl_rap_node=>root_node_object_types-service_binding.
-        APPEND generated_repository_object TO generated_repository_objects.
-      ENDIF.
+        "remove objects that have been deleted from the list
 
-      IF rapbo_node-ServiceDefinition IS NOT INITIAL.
-        generated_repository_object-object_name = rapbo_node-ServiceDefinition.
-        generated_repository_object-object_type = zdmo_cl_rap_node=>root_node_object_types-service_definition.
-        APPEND generated_repository_object TO generated_repository_objects.
-      ENDIF.
+        generated_objects_are_deleted(
+          EXPORTING
+*            i_rap_bo_name                 = rap_generator_bo-BoName
+            i_repository_objects          = objects_to_be_deleted_1
+          IMPORTING
+            r_existing_repository_objects = DATA(objects_to_be_deleted)
+          RECEIVING
+            r_objects_have_been_deleted   = DATA(objects_have_been_deleted)
+        ).
 
-      IF rapbo_node-CdsRView IS NOT INITIAL.
-        generated_repository_object-object_name = rapbo_node-CdsRView.
-        generated_repository_object-object_type = zdmo_cl_rap_node=>root_node_object_types-behavior_definition_r.
-        APPEND generated_repository_object TO generated_repository_objects.
-        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-cds_view_r.
-        APPEND generated_repository_object TO generated_repository_objects.
-      ENDIF.
 
-      IF rapbo_node-CdsPView IS NOT INITIAL.
-        generated_repository_object-object_name = rapbo_node-CdsPView.
-        generated_repository_object-object_type = zdmo_cl_rap_node=>root_node_object_types-behavior_definition_p.
-        APPEND generated_repository_object TO generated_repository_objects.
-        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-cds_view_p.
-        APPEND generated_repository_object TO generated_repository_objects.
-        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-meta_data_extension.
-        APPEND generated_repository_object TO generated_repository_objects.
-      ENDIF.
+        LOOP AT objects_to_be_deleted INTO DATA(object_to_be_deleted).
+          add_text_to_app_log_or_console( | Type: { object_to_be_deleted-object_type } Name: { object_to_be_deleted-object_name } locked by cts: { object_to_be_deleted-transport_request }| ).
+*        ENDLOOP.
 
-      IF rapbo_node-CdsiView IS NOT INITIAL.
-        generated_repository_object-object_name = rapbo_node-CdsiView.
-        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-cds_view_i.
-        APPEND generated_repository_object TO generated_repository_objects.
-      ENDIF.
+          "unpublish service binding
+*        IF line_exists( objects_to_be_deleted[ object_type = zdmo_cl_rap_node=>root_node_object_types-service_binding ]  ).
+          IF object_to_be_deleted-object_type = zdmo_cl_rap_node=>root_node_object_types-service_binding.
+            DATA(service_binding_to_be_deleted) = objects_to_be_deleted[ object_type = zdmo_cl_rap_node=>root_node_object_types-service_binding ].
 
-      IF rapbo_node-ControlStructure IS NOT INITIAL.
-        generated_repository_object-object_name = rapbo_node-ControlStructure.
-        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-control_structure.
-        APPEND generated_repository_object TO generated_repository_objects.
-      ENDIF.
-
-      IF rapbo_node-BehaviorImplementationClass IS NOT INITIAL.
-        generated_repository_object-object_name = rapbo_node-BehaviorImplementationClass.
-        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-behavior_implementation.
-        APPEND generated_repository_object TO generated_repository_objects.
-      ENDIF.
-
-      IF rapbo_node-DraftTableName IS NOT INITIAL.
-        generated_repository_object-object_name = rapbo_node-DraftTableName.
-        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-draft_table.
-        APPEND generated_repository_object TO generated_repository_objects.
-      ENDIF.
-
-      LOOP AT generated_repository_objects INTO generated_repository_object.
-
-        CASE generated_repository_object-object_type.
-
-          WHEN zdmo_cl_rap_node=>root_node_object_types-service_binding.
-            IF xco_lib->get_service_binding( CONV sxco_srvb_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
-              r_repository_objects_exist = abap_true.
+            "in cloud we have a validation that checks whether the service binding is still published
+            IF xco_lib->service_binding_is_published( CONV sxco_srvb_object_name(  service_binding_to_be_deleted-object_name ) ).
+              add_text_to_app_log_or_console( |Service binding { service_binding_to_be_deleted-object_name } is published. | ).
+              IF demo_mode = abap_false.
+                add_text_to_app_log_or_console( |unpublishing { service_binding_to_be_deleted-object_name }  | ).
+                xco_lib->un_publish_service_binding( CONV sxco_srvb_object_name(  service_binding_to_be_deleted-object_name ) ).
+              ENDIF.
             ENDIF.
-          WHEN zdmo_cl_rap_node=>root_node_object_types-service_definition.
-            IF xco_lib->get_service_definition( CONV sxco_srvd_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
-              r_repository_objects_exist = abap_true.
-            ENDIF.
-          WHEN zdmo_cl_rap_node=>root_node_object_types-behavior_definition_r. "this checks also for behavior projection 'BDEF'
-            IF xco_lib->get_behavior_definition( CONV sxco_cds_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
-              r_repository_objects_exist = abap_true.
-            ENDIF.
-          WHEN zdmo_cl_rap_node=>node_object_types-behavior_implementation. "checks also for query implementation 'CLAS'
-            IF xco_lib->get_class( CONV  sxco_ao_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
-              r_repository_objects_exist = abap_true.
-            ENDIF.
-          WHEN zdmo_cl_rap_node=>node_object_types-cds_view_r. "this checks also for i- and p-views as well as for custom entities
-            IF xco_lib->get_view( CONV  sxco_cds_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
-              r_repository_objects_exist = abap_true.
-            ENDIF.
-          WHEN zdmo_cl_rap_node=>node_object_types-control_structure.
-            IF xco_lib->get_structure( CONV  sxco_ad_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
-              r_repository_objects_exist = abap_true.
-            ENDIF.
-          WHEN zdmo_cl_rap_node=>node_object_types-draft_table.
-            IF xco_lib->get_database_table( CONV  sxco_dbt_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
-              r_repository_objects_exist = abap_true.
-            ENDIF.
-          WHEN  zdmo_cl_rap_node=>node_object_types-meta_data_extension.
-            IF xco_lib->get_metadata_extension( CONV  sxco_cds_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
-              r_repository_objects_exist = abap_true.
-            ENDIF.
-          WHEN OTHERS.
-            "do nothing
-        ENDCASE.
 
-      ENDLOOP.
+            IF xco_lib->service_binding_is_published( CONV sxco_srvb_object_name(  service_binding_to_be_deleted-object_name ) ) = abap_false.
+              add_text_to_app_log_or_console( |Service binding { service_binding_to_be_deleted-object_name } is not published.| ).
+            ENDIF.
 
-    ENDLOOP.
+          ENDIF.
+        ENDLOOP.
+        "start deletion
+        add_text_to_app_log_or_console( |Start deleting generated objects| ).
 
+        IF demo_mode = abap_false.
+
+          delete_generated_objects(
+            i_rap_bo_name        = BoName
+            i_repository_objects = objects_to_be_deleted
+          ).
+
+
+
+          IF generated_objects_are_deleted(
+*                   i_rap_bo_name        = rap_generator_bo-BoName
+                 i_repository_objects = objects_to_be_deleted
+               ) = abap_true.
+
+            add_text_to_app_log_or_console(
+              i_text     = |All objects of { BoName } have been deleted. |
+              i_severity = if_bali_constants=>c_severity_status
+            ).
+
+*                  Delete_RAP_Generator_Project( rap_generator_bo-BoName ).
+
+          ELSE.
+            add_text_to_app_log_or_console(
+              i_text     = |Not all objects of { BoName } have been deleted. |
+              i_severity = if_bali_constants=>c_severity_error
+            ).
+          ENDIF.
+        ENDIF.
+
+
+*      CATCH cx_bali_runtime INTO DATA(application_log_exception).
+      CATCH cx_root INTO DATA(application_log_exception).
+
+        DATA(exception_text) = application_log_exception->get_text(  ).
+        exception_text = |Exception was raised: { exception_text }|.
+        add_text_to_app_log_or_console(
+          i_text     = CONV #( exception_text )
+          i_severity = if_bali_constants=>c_severity_error
+        ).
+
+    ENDTRY.
   ENDMETHOD.
 
 
@@ -449,6 +423,7 @@ CLASS zdmo_cl_rap_generator_del IMPLEMENTATION.
 *    ELSE.
 
   ENDMETHOD.
+
 
   METHOD delete_behavior_definitions.
     DATA task_name TYPE bapi_msg VALUE 'delete behavior definitions'.
@@ -1387,106 +1362,130 @@ CLASS zdmo_cl_rap_generator_del IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD rap_gen_project_objects_exist.
 
+    DATA generated_repository_objects TYPE zdmo_cl_rap_generator=>t_generated_repository_objects.
+    DATA generated_repository_object TYPE zdmo_cl_rap_generator=>t_generated_repository_object.
 
+*    DATA on_prem_xco_lib  TYPE REF TO zdmo_cl_rap_xco_lib.
+*    DATA xco_lib  TYPE REF TO zdmo_cl_rap_xco_lib.
+*
+*    on_prem_xco_lib = NEW zdmo_cl_rap_xco_on_prem_lib(  ).
+*
+*    IF on_prem_xco_lib->on_premise_branch_is_used( ) = abap_true.
+*      xco_lib = NEW zdmo_cl_rap_xco_on_prem_lib(  ).
+*    ELSE.
+*      xco_lib = NEW zdmo_cl_rap_xco_cloud_lib(  ).
+*    ENDIF.
 
-  METHOD start_deletion.
+    SELECT * FROM ZDMO_R_RAPG_NodeTP WHERE rapboUUID = @i_rap_generator_project-RapboUUID
+                                                  INTO TABLE @DATA(rapbo_nodes).
 
-    TRY.
-*        IF application_log IS INITIAL.
-*          create_application_log(  ).
-*        ENDIF.
+    LOOP AT rapbo_nodes INTO DATA(rapbo_node).
+      "get repository object names and types
 
-        add_text_to_app_log_or_console( 'start method start_deletion( )' ).
+      CLEAR generated_repository_objects.
 
+      IF rapbo_node-ServiceBinding IS NOT INITIAL.
+        generated_repository_object-object_name = rapbo_node-ServiceBinding.
+        generated_repository_object-object_type = zdmo_cl_rap_node=>root_node_object_types-service_binding.
+        APPEND generated_repository_object TO generated_repository_objects.
+      ENDIF.
 
-        add_text_to_app_log_or_console( |checking rap bo { BoName }| ).
+      IF rapbo_node-ServiceDefinition IS NOT INITIAL.
+        generated_repository_object-object_name = rapbo_node-ServiceDefinition.
+        generated_repository_object-object_type = zdmo_cl_rap_node=>root_node_object_types-service_definition.
+        APPEND generated_repository_object TO generated_repository_objects.
+      ENDIF.
 
-        DATA(objects_to_be_deleted_1) = get_objects_from_rap_generator( BoName ).
+      IF rapbo_node-CdsRView IS NOT INITIAL.
+        generated_repository_object-object_name = rapbo_node-CdsRView.
+        generated_repository_object-object_type = zdmo_cl_rap_node=>root_node_object_types-behavior_definition_r.
+        APPEND generated_repository_object TO generated_repository_objects.
+        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-cds_view_r.
+        APPEND generated_repository_object TO generated_repository_objects.
+      ENDIF.
 
+      IF rapbo_node-CdsPView IS NOT INITIAL.
+        generated_repository_object-object_name = rapbo_node-CdsPView.
+        generated_repository_object-object_type = zdmo_cl_rap_node=>root_node_object_types-behavior_definition_p.
+        APPEND generated_repository_object TO generated_repository_objects.
+        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-cds_view_p.
+        APPEND generated_repository_object TO generated_repository_objects.
+        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-meta_data_extension.
+        APPEND generated_repository_object TO generated_repository_objects.
+      ENDIF.
 
-        "remove objects that have been deleted from the list
+      IF rapbo_node-CdsiView IS NOT INITIAL.
+        generated_repository_object-object_name = rapbo_node-CdsiView.
+        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-cds_view_i.
+        APPEND generated_repository_object TO generated_repository_objects.
+      ENDIF.
 
-        generated_objects_are_deleted(
-          EXPORTING
-*            i_rap_bo_name                 = rap_generator_bo-BoName
-            i_repository_objects          = objects_to_be_deleted_1
-          IMPORTING
-            r_existing_repository_objects = DATA(objects_to_be_deleted)
-          RECEIVING
-            r_objects_have_been_deleted   = DATA(objects_have_been_deleted)
-        ).
+      IF rapbo_node-ControlStructure IS NOT INITIAL.
+        generated_repository_object-object_name = rapbo_node-ControlStructure.
+        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-control_structure.
+        APPEND generated_repository_object TO generated_repository_objects.
+      ENDIF.
 
+      IF rapbo_node-BehaviorImplementationClass IS NOT INITIAL.
+        generated_repository_object-object_name = rapbo_node-BehaviorImplementationClass.
+        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-behavior_implementation.
+        APPEND generated_repository_object TO generated_repository_objects.
+      ENDIF.
 
-        LOOP AT objects_to_be_deleted INTO DATA(object_to_be_deleted).
-          add_text_to_app_log_or_console( | Type: { object_to_be_deleted-object_type } Name: { object_to_be_deleted-object_name } locked by cts: { object_to_be_deleted-transport_request }| ).
-*        ENDLOOP.
+      IF rapbo_node-DraftTableName IS NOT INITIAL.
+        generated_repository_object-object_name = rapbo_node-DraftTableName.
+        generated_repository_object-object_type = zdmo_cl_rap_node=>node_object_types-draft_table.
+        APPEND generated_repository_object TO generated_repository_objects.
+      ENDIF.
 
-          "unpublish service binding
-*        IF line_exists( objects_to_be_deleted[ object_type = zdmo_cl_rap_node=>root_node_object_types-service_binding ]  ).
-          IF object_to_be_deleted-object_type = zdmo_cl_rap_node=>root_node_object_types-service_binding.
-            DATA(service_binding_to_be_deleted) = objects_to_be_deleted[ object_type = zdmo_cl_rap_node=>root_node_object_types-service_binding ].
+      LOOP AT generated_repository_objects INTO generated_repository_object.
 
-            "in cloud we have a validation that checks whether the service binding is still published
-            IF xco_lib->service_binding_is_published( CONV sxco_srvb_object_name(  service_binding_to_be_deleted-object_name ) ).
-              add_text_to_app_log_or_console( |Service binding { service_binding_to_be_deleted-object_name } is published. | ).
-              IF demo_mode = abap_false.
-                add_text_to_app_log_or_console( |unpublishing { service_binding_to_be_deleted-object_name }  | ).
-                xco_lib->un_publish_service_binding( CONV sxco_srvb_object_name(  service_binding_to_be_deleted-object_name ) ).
-              ENDIF.
+        CASE generated_repository_object-object_type.
+
+          WHEN zdmo_cl_rap_node=>root_node_object_types-service_binding.
+            IF xco_lib->get_service_binding( CONV sxco_srvb_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
+              r_repository_objects_exist = abap_true.
             ENDIF.
-
-            IF xco_lib->service_binding_is_published( CONV sxco_srvb_object_name(  service_binding_to_be_deleted-object_name ) ) = abap_false.
-              add_text_to_app_log_or_console( |Service binding { service_binding_to_be_deleted-object_name } is not published.| ).
+          WHEN zdmo_cl_rap_node=>root_node_object_types-service_definition.
+            IF xco_lib->get_service_definition( CONV sxco_srvd_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
+              r_repository_objects_exist = abap_true.
             ENDIF.
+          WHEN zdmo_cl_rap_node=>root_node_object_types-behavior_definition_r. "this checks also for behavior projection 'BDEF'
+            IF xco_lib->get_behavior_definition( CONV sxco_cds_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
+              r_repository_objects_exist = abap_true.
+            ENDIF.
+          WHEN zdmo_cl_rap_node=>node_object_types-behavior_implementation. "checks also for query implementation 'CLAS'
+            IF xco_lib->get_class( CONV  sxco_ao_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
+              r_repository_objects_exist = abap_true.
+            ENDIF.
+          WHEN zdmo_cl_rap_node=>node_object_types-cds_view_r. "this checks also for i- and p-views as well as for custom entities
+            IF xco_lib->get_view( CONV  sxco_cds_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
+              r_repository_objects_exist = abap_true.
+            ENDIF.
+          WHEN zdmo_cl_rap_node=>node_object_types-control_structure.
+            IF xco_lib->get_structure( CONV  sxco_ad_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
+              r_repository_objects_exist = abap_true.
+            ENDIF.
+          WHEN zdmo_cl_rap_node=>node_object_types-draft_table.
+            IF xco_lib->get_database_table( CONV  sxco_dbt_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
+              r_repository_objects_exist = abap_true.
+            ENDIF.
+          WHEN  zdmo_cl_rap_node=>node_object_types-meta_data_extension.
+            IF xco_lib->get_metadata_extension( CONV  sxco_cds_object_name(  generated_repository_object-object_name ) )->if_xco_ar_object~exists( ) = abap_true.
+              r_repository_objects_exist = abap_true.
+            ENDIF.
+          WHEN OTHERS.
+            "do nothing
+        ENDCASE.
 
-          ENDIF.
-        ENDLOOP.
-        "start deletion
-        add_text_to_app_log_or_console( |Start deleting generated objects| ).
+      ENDLOOP.
 
-        IF demo_mode = abap_false.
+    ENDLOOP.
 
-          delete_generated_objects(
-            i_rap_bo_name        = BoName
-            i_repository_objects = objects_to_be_deleted
-          ).
-
-
-
-          IF generated_objects_are_deleted(
-*                   i_rap_bo_name        = rap_generator_bo-BoName
-                 i_repository_objects = objects_to_be_deleted
-               ) = abap_true.
-
-            add_text_to_app_log_or_console(
-              i_text     = |All objects of { BoName } have been deleted. |
-              i_severity = if_bali_constants=>c_severity_status
-            ).
-
-*                  Delete_RAP_Generator_Project( rap_generator_bo-BoName ).
-
-          ELSE.
-            add_text_to_app_log_or_console(
-              i_text     = |Not all objects of { BoName } have been deleted. |
-              i_severity = if_bali_constants=>c_severity_error
-            ).
-          ENDIF.
-        ENDIF.
-
-
-*      CATCH cx_bali_runtime INTO DATA(application_log_exception).
-      CATCH cx_root INTO DATA(application_log_exception).
-
-        DATA(exception_text) = application_log_exception->get_text(  ).
-        exception_text = |Exception was raised: { exception_text }|.
-        add_text_to_app_log_or_console(
-          i_text     = CONV #( exception_text )
-          i_severity = if_bali_constants=>c_severity_error
-        ).
-
-    ENDTRY.
   ENDMETHOD.
+
 
   METHOD service_binding_is_published.
 

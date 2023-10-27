@@ -1,4 +1,4 @@
-CLASS zdmo_gen_rap110_single_2 DEFINITION
+CLASS zdmo_gen_rap110_single DEFINITION
 
 INHERITING FROM zdmo_cl_rap_generator_base
 **************************************************************************
@@ -16,7 +16,8 @@ INHERITING FROM zdmo_cl_rap_generator_base
 
   PUBLIC SECTION.
     INTERFACES if_oo_adt_classrun.
-    METHODS constructor.
+    METHODS constructor
+      IMPORTING i_unique_suffix TYPE string OPTIONAL.
 
   PROTECTED SECTION.
 
@@ -142,7 +143,7 @@ ENDCLASS.
 
 
 
-CLASS ZDMO_GEN_RAP110_SINGLE_2 IMPLEMENTATION.
+CLASS zdmo_gen_rap110_single IMPLEMENTATION.
 
 
   METHOD constructor.
@@ -157,11 +158,11 @@ CLASS ZDMO_GEN_RAP110_SINGLE_2 IMPLEMENTATION.
       xco_lib = NEW zdmo_cl_rap_xco_cloud_lib(  ).
     ENDIF.
 
-**    "suffix (group ID) and package name
-**    unique_suffix          = get_unique_suffix( co_prefix ).
-**    package_name           = co_prefix && unique_suffix. " your package name
-
-    unique_suffix          = get_unique_suffix( co_prefix ).
+    IF i_unique_suffix IS INITIAL.
+      unique_suffix          = get_unique_suffix( co_prefix ).
+    ELSE.
+      unique_suffix = i_unique_suffix.
+    ENDIF.
 
   ENDMETHOD.
 
@@ -2529,14 +2530,14 @@ CLASS ZDMO_GEN_RAP110_SINGLE_2 IMPLEMENTATION.
 *    IF lo_table_root->exists(  )  = abap_true AND
 *       lo_table_child->exists(  ) = abap_true.
 
-      create_rap_bo(
-        EXPORTING
-          out          = out
-        IMPORTING
-          eo_root_node = DATA(root_node)
-      )..
+    create_rap_bo(
+      EXPORTING
+        out          = out
+      IMPORTING
+        eo_root_node = DATA(root_node)
+    )..
 
-      delete_iview_and_mde( out = out ).
+    delete_iview_and_mde( out = out ).
 
 *    ENDIF.
 

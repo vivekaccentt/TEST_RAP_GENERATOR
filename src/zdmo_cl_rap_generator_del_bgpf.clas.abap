@@ -35,20 +35,32 @@ ENDCLASS.
 
 
 
-CLASS zdmo_cl_rap_generator_del_bgpf IMPLEMENTATION.
+CLASS ZDMO_CL_RAP_GENERATOR_DEL_BGPF IMPLEMENTATION.
+
 
   METHOD if_bgmc_op_single_tx_uncontr~execute.
     start_deletion(  ).
   ENDMETHOD.
 
+
   METHOD if_abap_parallel~do.
     start_deletion(  ).
   ENDMETHOD.
+
 
   METHOD constructor.
     super->constructor( ).
     boname = i_boname.
   ENDMETHOD.
+
+
+  METHOD get_root_exception.
+    rx_root = ix_exception.
+    WHILE rx_root->previous IS BOUND.
+      rx_root ?= rx_root->previous.
+    ENDWHILE.
+  ENDMETHOD.
+
 
   METHOD start_deletion.
     DATA(rap_generator_del) = NEW zdmo_cl_rap_generator_del( boname ).
@@ -77,12 +89,4 @@ CLASS zdmo_cl_rap_generator_del_bgpf IMPLEMENTATION.
 
 
   ENDMETHOD.
-
-  METHOD get_root_exception.
-    rx_root = ix_exception.
-    WHILE rx_root->previous IS BOUND.
-      rx_root ?= rx_root->previous.
-    ENDWHILE.
-  ENDMETHOD.
-
 ENDCLASS.

@@ -1152,7 +1152,7 @@ ENDCLASS.
 
 
 
-CLASS zdmo_cl_rap_node IMPLEMENTATION.
+CLASS ZDMO_CL_RAP_NODE IMPLEMENTATION.
 
 
   METHOD add_additional_fields.
@@ -3670,12 +3670,37 @@ CLASS zdmo_cl_rap_node IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD is_alphabetical_character_only.
-    rv_is_alphabetical_char_only = abap_true.
-    FIND ALL OCCURRENCES OF REGEX '[^a-zA-Z]' IN iv_string RESULTS DATA(non_alphabetical_characters).
-    IF non_alphabetical_characters IS NOT INITIAL.
-      rv_is_alphabetical_char_only = abap_false.
+  METHOD set_name_behavior_def_i.
+    IF iv_name IS INITIAL.
+*      DATA(lv_name) = |{ namespace }I_{ prefix }{ entityname }{ suffix }|.
+      DATA(lv_name) = get_unique_repository_obj_name( i_repository_object_type = root_node_repository_objects-behavior_definition_i ).
+    ELSE.
+      lv_name = iv_name.
     ENDIF.
+
+    check_repository_object_name(
+          EXPORTING
+            iv_type = 'BDEF'
+            iv_name = lv_name
+        ).
+
+
+    IF is_root( ).
+      rap_root_node_objects-behavior_definition_i = lv_name.
+      rv_behavior_dev_i_name = lv_name.
+    ELSEIF is_test_run = abap_true.
+      rap_root_node_objects-behavior_definition_i = lv_name.
+      rv_behavior_dev_i_name = lv_name.
+    ELSE.
+      APPEND | { me->entityname } is not a root node. BDEF for an interface view is only generated for the root node| TO lt_messages.
+      bo_node_is_consistent = abap_false.
+      RAISE EXCEPTION TYPE ZDMO_cx_rap_generator
+        EXPORTING
+          textid    = ZDMO_cx_rap_generator=>is_not_a_root_node
+          mv_entity = me->entityname.
+    ENDIF.
+
+
   ENDMETHOD.
 
 
@@ -4238,37 +4263,12 @@ CLASS zdmo_cl_rap_node IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD set_ext_element_suffix.
-
-    IF iv_ext_element_suffix IS NOT INITIAL.
-
-      IF strlen( iv_ext_element_suffix ) NE 3.
-        bo_node_is_consistent = abap_false.
-        RAISE EXCEPTION TYPE ZDMO_cx_rap_generator
-          EXPORTING
-            textid   = ZDMO_cx_rap_generator=>invalid_ext_element_Suffix
-            mv_value = |{ iv_ext_element_suffix } |.
-      ENDIF.
-
-      IF is_alphabetical_character_only( iv_ext_element_suffix ) = abap_false.
-        bo_node_is_consistent = abap_false.
-        RAISE EXCEPTION TYPE ZDMO_cx_rap_generator
-          EXPORTING
-            textid   = ZDMO_cx_rap_generator=>invalid_ext_element_Suffix
-            mv_value = |{ iv_ext_element_suffix } |.
-      ENDIF.
-
-      extensibility_element_Suffix = iv_ext_element_suffix.
-    ELSE.
-
-      IF bo_is_extensible = abap_true.
-        RAISE EXCEPTION TYPE ZDMO_cx_rap_generator
-          EXPORTING
-            textid = ZDMO_cx_rap_generator=>no_ext_element_suffix_set.
-      ENDIF.
-
+  METHOD is_alphabetical_character_only.
+    rv_is_alphabetical_char_only = abap_true.
+    FIND ALL OCCURRENCES OF REGEX '[^a-zA-Z]' IN iv_string RESULTS DATA(non_alphabetical_characters).
+    IF non_alphabetical_characters IS NOT INITIAL.
+      rv_is_alphabetical_char_only = abap_false.
     ENDIF.
-
   ENDMETHOD.
 
 
@@ -5183,40 +5183,6 @@ CLASS zdmo_cl_rap_node IMPLEMENTATION.
       EXIT.
 
     ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD set_name_behavior_def_i.
-    IF iv_name IS INITIAL.
-*      DATA(lv_name) = |{ namespace }I_{ prefix }{ entityname }{ suffix }|.
-      DATA(lv_name) = get_unique_repository_obj_name( i_repository_object_type = root_node_repository_objects-behavior_definition_i ).
-    ELSE.
-      lv_name = iv_name.
-    ENDIF.
-
-    check_repository_object_name(
-          EXPORTING
-            iv_type = 'BDEF'
-            iv_name = lv_name
-        ).
-
-
-    IF is_root( ).
-      rap_root_node_objects-behavior_definition_i = lv_name.
-      rv_behavior_dev_i_name = lv_name.
-    ELSEIF is_test_run = abap_true.
-      rap_root_node_objects-behavior_definition_i = lv_name.
-      rv_behavior_dev_i_name = lv_name.
-    ELSE.
-      APPEND | { me->entityname } is not a root node. BDEF for an interface view is only generated for the root node| TO lt_messages.
-      bo_node_is_consistent = abap_false.
-      RAISE EXCEPTION TYPE ZDMO_cx_rap_generator
-        EXPORTING
-          textid    = ZDMO_cx_rap_generator=>is_not_a_root_node
-          mv_entity = me->entityname.
-    ENDIF.
-
 
   ENDMETHOD.
 
@@ -6782,6 +6748,40 @@ CLASS zdmo_cl_rap_node IMPLEMENTATION.
       RAISE EXCEPTION TYPE ZDMO_cx_rap_generator
         EXPORTING
           textid = ZDMO_cx_rap_generator=>no_ext_element_suffix_set.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD set_ext_element_suffix.
+
+    IF iv_ext_element_suffix IS NOT INITIAL.
+
+      IF strlen( iv_ext_element_suffix ) NE 3.
+        bo_node_is_consistent = abap_false.
+        RAISE EXCEPTION TYPE ZDMO_cx_rap_generator
+          EXPORTING
+            textid   = ZDMO_cx_rap_generator=>invalid_ext_element_Suffix
+            mv_value = |{ iv_ext_element_suffix } |.
+      ENDIF.
+
+      IF is_alphabetical_character_only( iv_ext_element_suffix ) = abap_false.
+        bo_node_is_consistent = abap_false.
+        RAISE EXCEPTION TYPE ZDMO_cx_rap_generator
+          EXPORTING
+            textid   = ZDMO_cx_rap_generator=>invalid_ext_element_Suffix
+            mv_value = |{ iv_ext_element_suffix } |.
+      ENDIF.
+
+      extensibility_element_Suffix = iv_ext_element_suffix.
+    ELSE.
+
+      IF bo_is_extensible = abap_true.
+        RAISE EXCEPTION TYPE ZDMO_cx_rap_generator
+          EXPORTING
+            textid = ZDMO_cx_rap_generator=>no_ext_element_suffix_set.
+      ENDIF.
+
     ENDIF.
 
   ENDMETHOD.
