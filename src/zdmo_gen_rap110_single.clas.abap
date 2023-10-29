@@ -859,6 +859,24 @@ CLASS zdmo_gen_rap110_single IMPLEMENTATION.
           ENDIF.
         ENDIF.
 
+        DATA(lo_delete_bdef_iview_operation) = mo_environment2->for-bdef->create_delete_operation( ).
+        lo_delete_bdef_iview_operation->add_object( i_view_name_travel ).
+
+        IF debug_modus = abap_true.
+          out->write( |add object i bdef for deletion { i_view_name_travel  } | ).
+        ENDIF.
+        DATA(result_del_bdef) = lo_delete_bdef_iview_operation->execute( ).
+
+        IF debug_modus = abap_true.
+          out->write( |Success: deleting bdef interface | ).
+          lt_findings = result_del_bdef->findings->get(  ).
+          IF lt_findings IS NOT INITIAL.
+            LOOP AT lt_findings INTO finding.
+              out->write( finding->message->get_text(  ) ).
+            ENDLOOP.
+          ENDIF.
+        ENDIF.
+
         DATA(lo_delete_cds_iview_operation) = mo_environment2->for-ddls->create_delete_operation( ).
         lo_delete_cds_iview_operation->add_object( i_view_name_travel ).
         lo_delete_cds_iview_operation->add_object( i_view_name_booking ).
